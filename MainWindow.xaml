@@ -1,0 +1,471 @@
+﻿<Window x:Class="DesktopToDo.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:DesktopToDo"
+        xmlns:scm="clr-namespace:System.ComponentModel;assembly=WindowsBase" 
+    mc:Ignorable="d"
+        Title="我的待办事项" Height="500" Width="400"
+        AllowsTransparency="True" WindowStyle="None" Background="Transparent" ShowInTaskbar="False"
+        WindowStartupLocation="Manual" MouseLeftButtonDown="Window_MouseLeftButtonDown"
+        FontFamily="Segoe UI"
+        Opacity="{Binding RelativeSource={RelativeSource Self}, Path=OpacityValue, Mode=TwoWay}">
+
+    <Window.Resources>
+        <!-- 定义颜色 -->
+        <SolidColorBrush x:Key="BackgroundColor" Color="#F5F5F5"/>
+        <SolidColorBrush x:Key="BorderColor" Color="#D0D0D0"/>
+        <SolidColorBrush x:Key="TextColor" Color="#333333"/>
+        <SolidColorBrush x:Key="SecondaryTextColor" Color="#888888"/>
+        <SolidColorBrush x:Key="AccentColor" Color="#0078D4"/>
+        <SolidColorBrush x:Key="AccentForegroundColor" Color="White"/>
+        <SolidColorBrush x:Key="ItemHoverBackground" Color="#EAEAEA"/>
+        <SolidColorBrush x:Key="DeleteButtonHoverBackground" Color="#E81123"/>
+        <SolidColorBrush x:Key="DeleteButtonHoverForeground" Color="White"/>
+        <SolidColorBrush x:Key="WindowControlButtonHoverBackground" Color="#E0E0E0"/>
+        <SolidColorBrush x:Key="CloseButtonHoverBackground" Color="#E81123"/>
+        <SolidColorBrush x:Key="CloseButtonHoverForeground" Color="White"/>
+        <SolidColorBrush x:Key="GroupSelectedBackground" Color="#E0E0E0"/>
+        <SolidColorBrush x:Key="ImportantColor" Color="Red"/>
+        <!-- 重点颜色 -->
+
+        <!-- 内置布尔到可见性转换器 -->
+        <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+
+        <!-- 自定义转换器 (需要在 C# 的单独文件中定义) -->
+        <local:NegateBooleanConverter x:Key="NegateBoolConverter"/>
+        <local:MultiBooleanToVisibilityConverter x:Key="MultiBoolToVis"/>
+
+        <!-- CollectionViewSource (移除了 ToDoViewSource 的 SortDescriptions 以支持拖放排序) -->
+        <CollectionViewSource x:Key="ToDoViewSource" Source="{Binding ToDoItems, RelativeSource={RelativeSource AncestorType=Window}}" Filter="ToDoFilter">
+            <!-- 
+            <CollectionViewSource.SortDescriptions>
+                <scm:SortDescription PropertyName="IsImportant" Direction="Descending"/>
+            </CollectionViewSource.SortDescriptions>
+            -->
+        </CollectionViewSource>
+        <CollectionViewSource x:Key="CompletedViewSource" Source="{Binding ToDoItems, RelativeSource={RelativeSource AncestorType=Window}}" Filter="CompletedFilter"/>
+        <CollectionViewSource x:Key="ImportantViewSource" Source="{Binding ToDoItems, RelativeSource={RelativeSource AncestorType=Window}}" Filter="ImportantFilter"/>
+
+        <!-- 窗口控制按钮样式 -->
+        <Style TargetType="Button" x:Key="WindowControlButton">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Width" Value="30"/>
+            <Setter Property="Height" Value="25"/>
+            <Setter Property="FontFamily" Value="Segoe MDL2 Assets"/>
+            <Setter Property="FontSize" Value="10"/>
+            <Setter Property="Foreground" Value="{StaticResource TextColor}"/>
+            <Setter Property="VerticalAlignment" Value="Top"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="border" Background="{TemplateBinding Background}">
+                            <TextBlock Text="{TemplateBinding Content}" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{TemplateBinding Foreground}"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="{StaticResource WindowControlButtonHoverBackground}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style TargetType="Button" x:Key="CloseButtonStyle" BasedOn="{StaticResource WindowControlButton}">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="border" Background="{TemplateBinding Background}">
+                            <TextBlock Text="{TemplateBinding Content}" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{TemplateBinding Foreground}"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="{StaticResource CloseButtonHoverBackground}"/>
+                                <Setter Property="Foreground" Value="{StaticResource CloseButtonHoverForeground}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style TargetType="Button" x:Key="ToggleButtonStyle" BasedOn="{StaticResource WindowControlButton}">
+            <Setter Property="HorizontalAlignment" Value="Left"/>
+            <Setter Property="Margin" Value="5,0,0,0"/>
+            <Setter Property="Width" Value="25"/>
+        </Style>
+
+        <!-- 分组选择器 RadioButton 样式 -->
+        <Style TargetType="RadioButton" x:Key="GroupSelectorStyle">
+            <Setter Property="Padding" Value="10,8"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="{StaticResource TextColor}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="HorizontalAlignment" Value="Stretch"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RadioButton">
+                        <Border x:Name="border" Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}" CornerRadius="3">
+                            <ContentPresenter HorizontalAlignment="Left" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="{StaticResource GroupSelectedBackground}"/>
+                                <Setter Property="FontWeight" Value="SemiBold"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Trigger.Setters>
+                                    <Setter TargetName="border" Property="Background" Value="{StaticResource ItemHoverBackground}"/>
+                                </Trigger.Setters>
+                            </Trigger>
+                            <MultiTrigger>
+                                <MultiTrigger.Conditions>
+                                    <Condition Property="IsChecked" Value="True"/>
+                                    <Condition Property="IsMouseOver" Value="True"/>
+                                </MultiTrigger.Conditions>
+                                <Setter TargetName="border" Property="Background" Value="{StaticResource GroupSelectedBackground}"/>
+                            </MultiTrigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- TextBox 样式 -->
+        <Style TargetType="TextBox" x:Key="InputBoxStyle">
+            <Setter Property="Padding" Value="5,6"/>
+            <Setter Property="BorderBrush" Value="{StaticResource BorderColor}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Foreground" Value="{StaticResource TextColor}"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Background" Value="White"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <Border x:Name="border" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="3" SnapsToDevicePixels="True">
+                            <ScrollViewer x:Name="PART_ContentHost" Focusable="false" HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Hidden" Margin="2"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter Property="BorderBrush" Value="{StaticResource AccentColor}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <!-- 添加按钮样式 -->
+        <Style TargetType="Button" x:Key="AddButtonStyle">
+            <Setter Property="Background" Value="{StaticResource AccentColor}"/>
+            <Setter Property="Foreground" Value="{StaticResource AccentForegroundColor}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="10,6"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="border" Background="{TemplateBinding Background}" CornerRadius="3">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" Margin="{TemplateBinding Padding}"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#005A9E"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#003C6A"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="border" Property="Background" Value="#A0A0A0"/>
+                                <Setter Property="Foreground" Value="#E0E0E0"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <!-- 删除按钮样式 -->
+        <Style TargetType="Button" x:Key="DeleteButtonStyle">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="{StaticResource SecondaryTextColor}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Width" Value="20"/>
+            <Setter Property="Height" Value="20"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="HorizontalAlignment" Value="Right"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="border" Background="{TemplateBinding Background}" CornerRadius="10">
+                            <TextBlock Text="{TemplateBinding Content}" VerticalAlignment="Center" HorizontalAlignment="Center" Foreground="{TemplateBinding Foreground}"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="{StaticResource DeleteButtonHoverBackground}"/>
+                                <Setter Property="Foreground" Value="{StaticResource DeleteButtonHoverForeground}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <!-- 完成 CheckBox 样式 -->
+        <Style TargetType="CheckBox" x:Key="ToDoCheckBoxStyle">
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Margin" Value="0,0,8,0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="CheckBox">
+                        <Grid>
+                            <Border x:Name="border" Width="16" Height="16" BorderBrush="{StaticResource BorderColor}" BorderThickness="1" Background="White" CornerRadius="3" VerticalAlignment="Center">
+                                <TextBlock x:Name="checkMark" Text="✓" Foreground="{StaticResource AccentColor}" FontSize="12" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Hidden"/>
+                            </Border>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="checkMark" Property="Visibility" Value="Visible"/>
+                                <Setter TargetName="border" Property="Background" Value="#E0F0FF"/>
+                                <Setter TargetName="border" Property="BorderBrush" Value="{StaticResource AccentColor}"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="BorderBrush" Value="{StaticResource AccentColor}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ListViewItem 样式 (添加了拖放事件) -->
+        <Style TargetType="ListViewItem" x:Key="ToDoItemStyle">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="5"/>
+            <Setter Property="Margin" Value="0,2"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <!-- 添加拖放事件处理 -->
+            <EventSetter Event="PreviewMouseLeftButtonDown" Handler="ListViewItem_PreviewMouseLeftButtonDown"/>
+            <EventSetter Event="PreviewMouseMove" Handler="ListViewItem_PreviewMouseMove"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListViewItem">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" Padding="{TemplateBinding Padding}" SnapsToDevicePixels="true" CornerRadius="3">
+                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="{TemplateBinding VerticalContentAlignment}" SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource ItemHoverBackground}"/>
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource GroupSelectedBackground}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- TextBlock 样式 (用于任务文本) -->
+        <Style TargetType="TextBlock" x:Key="TaskTextStyle">
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Foreground" Value="{StaticResource TextColor}"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="Margin" Value="0,0,5,0"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsDone}" Value="True">
+                    <Setter Property="TextDecorations" Value="Strikethrough"/>
+                    <Setter Property="Foreground" Value="{StaticResource SecondaryTextColor}"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding IsImportant}" Value="True">
+                    <Setter Property="Foreground" Value="{StaticResource ImportantColor}"/>
+                    <Setter Property="FontWeight" Value="SemiBold"/>
+                </DataTrigger>
+                <MultiDataTrigger>
+                    <MultiDataTrigger.Conditions>
+                        <Condition Binding="{Binding IsDone}" Value="True"/>
+                        <Condition Binding="{Binding IsImportant}" Value="True"/>
+                    </MultiDataTrigger.Conditions>
+                    <Setter Property="TextDecorations" Value="Strikethrough"/>
+                    <Setter Property="Foreground" Value="{StaticResource ImportantColor}"/>
+                </MultiDataTrigger>
+            </Style.Triggers>
+        </Style>
+        <!-- 五角星 ToggleButton 样式 -->
+        <Style TargetType="ToggleButton" x:Key="StarToggleStyle">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="FontFamily" Value="Segoe MDL2 Assets"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Foreground" Value="{StaticResource SecondaryTextColor}"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="HorizontalAlignment" Value="Right"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Width" Value="20"/>
+            <Setter Property="Height" Value="20"/>
+            <Setter Property="ToolTip" Value="标记/取消标记为重点"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border Background="{TemplateBinding Background}" CornerRadius="10">
+                            <TextBlock x:Name="StarIcon" Text="" Foreground="{TemplateBinding Foreground}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="StarIcon" Property="Text" Value=""/>
+                                <Setter Property="Foreground" Value="{StaticResource AccentColor}"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Foreground" Value="{StaticResource AccentColor}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <!-- 详情视图按钮样式 -->
+        <Style TargetType="Button" x:Key="DetailsButtonStyle" BasedOn="{StaticResource AddButtonStyle}">
+            <Setter Property="MinWidth" Value="70"/>
+            <Setter Property="Margin" Value="5"/>
+        </Style>
+        <Style TargetType="Button" x:Key="CancelDetailsButtonStyle" BasedOn="{StaticResource DetailsButtonStyle}">
+            <Setter Property="Background" Value="{StaticResource SecondaryTextColor}"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#A0A0A0"/>
+                </Trigger>
+                <Trigger Property="IsPressed" Value="True">
+                    <Setter Property="Background" Value="#606060"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+    </Window.Resources>
+
+    <!-- 主容器 Border -->
+    <Border Background="{StaticResource BackgroundColor}" CornerRadius="8" BorderThickness="1" BorderBrush="{StaticResource BorderColor}">
+        <Border.Effect>
+            <DropShadowEffect ShadowDepth="2" Direction="270" Color="#BBBBBB" Opacity="0.4" BlurRadius="6"/>
+        </Border.Effect>
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- 顶部区域 -->
+            <Grid Grid.Row="0" Background="Transparent" MouseLeftButtonDown="Window_MouseLeftButtonDown">
+                <Button x:Name="ToggleLeftPanelButton" Content="" Style="{StaticResource ToggleButtonStyle}" Click="ToggleLeftPanelButton_Click"/>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top">
+                    <Button Content="" Style="{StaticResource WindowControlButton}" Click="MinimizeButton_Click"/>
+                    <Button Content="" Style="{StaticResource CloseButtonStyle}" Click="CloseButton_Click"/>
+                </StackPanel>
+            </Grid>
+
+            <!-- 主要内容区域 -->
+            <Grid Grid.Row="1" Margin="15,5,15,10">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition x:Name="LeftPanelColumn" Width="Auto"/>
+                    <ColumnDefinition x:Name="SeparatorColumn" Width="15"/>
+                    <ColumnDefinition Width="*"/>
+                    <!-- 右侧主内容区 -->
+                </Grid.ColumnDefinitions>
+
+                <!-- 左侧面板 -->
+                <StackPanel x:Name="LeftPanel" Grid.Column="0" Orientation="Vertical" VerticalAlignment="Top" Margin="0,10,0,0">
+                    <RadioButton x:Name="ToDoRadioButton" Content="待完成" GroupName="ViewGroup" IsChecked="True" Style="{StaticResource GroupSelectorStyle}" Checked="GroupSelector_Checked"/>
+                    <RadioButton x:Name="CompletedRadioButton" Content="已完成" GroupName="ViewGroup" Style="{StaticResource GroupSelectorStyle}" Checked="GroupSelector_Checked"/>
+                    <RadioButton x:Name="ImportantRadioButton" Content="重点工作" GroupName="ViewGroup" Style="{StaticResource GroupSelectorStyle}" Checked="GroupSelector_Checked"/>
+                </StackPanel>
+
+                <!-- 右侧主内容区 Grid -->
+                <Grid Grid.Column="2">
+
+                    <!-- 列表视图组 -->
+                    <Grid x:Name="ListViewGroup">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="10"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+                        <!-- 输入区域 -->
+                        <Grid Grid.Row="0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBox x:Name="NewTaskTextBox" Grid.Column="0" KeyDown="NewTaskTextBox_KeyDown" Style="{StaticResource InputBoxStyle}" VerticalAlignment="Center"/>
+                            <Button x:Name="AddTaskButton" Grid.Column="1" Content="添加" Click="AddTaskButton_Click" Style="{StaticResource AddButtonStyle}" Margin="10,0,0,0" VerticalAlignment="Center"/>
+                        </Grid>
+                        <!-- 列表区域 (添加了拖放事件) -->
+                        <ListView x:Name="ToDoListView" Grid.Row="2" Background="Transparent" BorderThickness="0"
+                                  ItemsSource="{Binding Source={StaticResource ToDoViewSource}}" SelectionMode="Single"
+                                  ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                  ItemContainerStyle="{StaticResource ToDoItemStyle}"
+                                  MouseDoubleClick="ToDoListView_MouseDoubleClick"
+                                  AllowDrop="True"
+                                  DragEnter="ToDoListView_DragEnter"
+                                  DragOver="ToDoListView_DragOver"
+                                  Drop="ToDoListView_Drop">
+                            <ListView.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="0,2">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <CheckBox Grid.Column="0" IsChecked="{Binding IsDone, Mode=TwoWay}" Checked="DoneCheckBox_Changed" Unchecked="DoneCheckBox_Changed" Style="{StaticResource ToDoCheckBoxStyle}"/>
+                                        <TextBlock Grid.Column="1" Text="{Binding Text}" Style="{StaticResource TaskTextStyle}"/>
+                                        <ToggleButton Grid.Column="2" IsChecked="{Binding IsImportant, Mode=TwoWay}" Click="StarToggleButton_Click" Style="{StaticResource StarToggleStyle}" Margin="5,0,5,0"/>
+                                        <Button Grid.Column="3" Content="✕" Click="DeleteTaskButton_Click" Tag="{Binding}" Style="{StaticResource DeleteButtonStyle}">
+                                            <Button.Visibility>
+                                                <MultiBinding Converter="{StaticResource MultiBoolToVis}">
+                                                    <Binding Path="IsDone" Converter="{StaticResource NegateBoolConverter}"/>
+                                                    <Binding Path="IsMouseOver" RelativeSource="{RelativeSource AncestorType=ListViewItem}"/>
+                                                </MultiBinding>
+                                            </Button.Visibility>
+                                        </Button>
+                                    </Grid>
+                                </DataTemplate>
+                            </ListView.ItemTemplate>
+                        </ListView>
+                    </Grid>
+
+                    <!-- 详情视图组 -->
+                    <Grid x:Name="DetailsViewGroup" Visibility="Collapsed">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+                        <TextBlock Grid.Row="0" Margin="5,5,5,10" FontSize="16" FontWeight="SemiBold" TextWrapping="Wrap" Text="{Binding SelectedToDoItem.Text, RelativeSource={RelativeSource AncestorType=Window}}" Foreground="{StaticResource TextColor}"/>
+                        <TextBox x:Name="DetailsTextBox" Grid.Row="1" Margin="5,0,5,5" Padding="5" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" MinHeight="100" Style="{StaticResource InputBoxStyle}" VerticalContentAlignment="Top"/>
+                        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="5">
+                            <Button Content="保存" Style="{StaticResource DetailsButtonStyle}" Click="SaveDetailsButton_Click"/>
+                            <Button Content="取消" Style="{StaticResource CancelDetailsButtonStyle}" Click="CancelDetailsButton_Click"/>
+                        </StackPanel>
+                    </Grid>
+                </Grid>
+                <!-- End of Right Panel Grid -->
+            </Grid>
+            <!-- End of Main Content Grid -->
+
+            <!-- 底部区域 -->
+            <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="15,0,15,10" VerticalAlignment="Center">
+                <TextBlock Text="透明度:" VerticalAlignment="Center" Foreground="{StaticResource SecondaryTextColor}" Margin="0,0,5,0"/>
+                <Slider x:Name="OpacitySlider" Minimum="0.2" Maximum="1.0" Width="150" Value="{Binding OpacityValue, RelativeSource={RelativeSource AncestorType=Window}, Mode=TwoWay}" TickFrequency="0.1" IsSnapToTickEnabled="True"/>
+            </StackPanel>
+        </Grid>
+    </Border>
+</Window>
