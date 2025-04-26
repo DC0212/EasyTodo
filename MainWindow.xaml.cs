@@ -432,7 +432,8 @@ namespace DesktopToDo
                 var newItem = new ToDoItem { Text = newTaskText, IsDone = false, IsImportant = false, Details = null };
                 _masterToDoItems.Add(newItem);
                 NewTaskTextBox.Clear();
-                RefreshViews(); // 刷新所有视图源
+                UpdateListViewSource();
+                //RefreshViews(); // 刷新所有视图源
                 // 不需要手动刷新 ItemsSource 了，因为 ObservableCollection 会通知 CollectionViewSource
                 SaveData();
             }
